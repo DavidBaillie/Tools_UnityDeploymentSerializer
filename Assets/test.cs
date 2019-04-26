@@ -7,7 +7,7 @@ public class test : MonoBehaviour {
 	// Use this for initialization
 	void Start () {
         //Debug.Log(typeof(DeploymentSerializer.DeploymentSerializer).Name);
-        DeploymentSerializer.DeploymentSerializer.saveObject(new testClass(), "newFileName", true);
+        DeploymentSerializer.DeploymentSerializer.saveObject(new testClass(), "newFileNameTwo", true);
 	}
 	
 	// Update is called once per frame
@@ -20,4 +20,9 @@ public class test : MonoBehaviour {
 public class testClass
 {
     public int t;
+}
+
+public class nClass
+{
+    public int c;
 }
