@@ -3,6 +3,7 @@ using System;
 using System.IO;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 
 namespace DeploymentSerializer
 {
@@ -13,10 +14,15 @@ namespace DeploymentSerializer
     {
         private const string filenamePrefix = "DS_";
         private const string fileNameExtension = ".bytes";
+        private const string fileNameTrackerName = "FNTP";
 
         private static string resourcesFilePath = UnityTools.getProjectFilePath() + "/Resources/";
         private static string nonPersistentFilePath = UnityTools.getProjectFilePath() + "/DevelopmentBinaries/";
         private static string fileNamesTrackerPath = UnityTools.getProjectFilePath() + "/Resources/FNTP.bytes";
+
+        
+
+        #region Saving Object Methods
 
         /// <summary>
         /// Saves the provided Object to a binary file. If marked as persistent the file is saved to the Resources folder to be rebuilt for 
@@ -86,13 +92,13 @@ namespace DeploymentSerializer
                 catch (IOException)
                 {
                     DS_MessageLogger.logMessageToUnityConsole("An unexpected IO failure occured when trying to open the FileNameTracker" +
-                        " binary stored in the Resources Folder. Object saving process is being aborted!", LogType.Error);
+                        " binary stored in the Resources Folder. Object saving process is being aborted!", SerializerLogType.Error);
                     return;
                 }
                 catch (Exception)
                 {
                     DS_MessageLogger.logMessageToUnityConsole("An unknown failure occured when trying to open the FileNameTracker" +
-                        " binary stored in the Resources Folder. Onject saving process is being aborted!", LogType.Error);
+                        " binary stored in the Resources Folder. Onject saving process is being aborted!", SerializerLogType.Error);
                     return;
                 }
             }
@@ -121,7 +127,7 @@ namespace DeploymentSerializer
                 DS_MessageLogger.logMessageToUnityConsole("An unexpected IO failure occured when trying to serialize the provided object to the " +
                     "Resources Folder for persistance. " +
                     "Process is being aborted! \n" +
-                    "Class Name: " + SystemTools.getObjectName(objectToSave), LogType.Error);
+                    "Class Name: " + SystemTools.getObjectName(objectToSave), SerializerLogType.Error);
                 return;
             }
             catch (Exception)
@@ -129,7 +135,7 @@ namespace DeploymentSerializer
                 DS_MessageLogger.logMessageToUnityConsole("An unknown failure occured when trying to serialize the provided object to the " +
                     "Resources Folder for persistance." +
                     "Process is being aborted! \n" +
-                    "Class Name: " + SystemTools.getObjectName(objectToSave), LogType.Error);
+                    "Class Name: " + SystemTools.getObjectName(objectToSave), SerializerLogType.Error);
                 return;
             }
 
@@ -147,15 +153,18 @@ namespace DeploymentSerializer
             catch (IOException)
             {
                 DS_MessageLogger.logMessageToUnityConsole("An unexpected IO failure occured when trying to serialize the FileNameTracker object. " +
-                    "Process is being aborted!", LogType.Error);
+                    "Process is being aborted!", SerializerLogType.Error);
                 return;
             }
             catch (Exception)
             {
                 DS_MessageLogger.logMessageToUnityConsole("An unknown failure occured when trying to serialize the FileNameTracker object. " +
-                    "Process is being aborted!", LogType.Error);
+                    "Process is being aborted!", SerializerLogType.Error);
                 return;
-            }            
+            }
+
+            //Log the save if messages are enabled
+            DS_MessageLogger.logMessageToUnityConsole(SystemTools.getObjectName(objectToSave) + " was saved successfully", SerializerLogType.Standard);
         }
 
         /// <summary>
@@ -189,7 +198,7 @@ namespace DeploymentSerializer
                 DS_MessageLogger.logMessageToUnityConsole("An unexpected IO failure occured when trying to serialize the provided object to the" +
                     "DeveloperBinaries folder. " +
                     "Process is being aborted! \n" +
-                    "Class Name: " + SystemTools.getObjectName(objectToSave), LogType.Error);
+                    "Class Name: " + SystemTools.getObjectName(objectToSave), SerializerLogType.Error);
                 return;
             }
             catch (Exception)
@@ -197,9 +206,12 @@ namespace DeploymentSerializer
                 DS_MessageLogger.logMessageToUnityConsole("An unknown failure occured when trying to serialize the provided object to the " +
                     "DeveloperBinaries Folder. " +
                     "Process is being aborted! \n" +
-                    "Class Name: " + SystemTools.getObjectName(objectToSave), LogType.Error);
+                    "Class Name: " + SystemTools.getObjectName(objectToSave), SerializerLogType.Error);
                 return;
             }
+
+            //Log the save if messages are enabled
+            DS_MessageLogger.logMessageToUnityConsole(SystemTools.getObjectName(objectToSave) + " was saved successfully", SerializerLogType.Standard);
         } 
 
         /// <summary>
@@ -233,7 +245,7 @@ namespace DeploymentSerializer
                 DS_MessageLogger.logMessageToUnityConsole("An unexpected IO failure occured when trying to serialize the provided object to the" +
                     " Persistent File Path in build. " +
                     "Process is being aborted! \n" +
-                    "Class Name: " + SystemTools.getObjectName(objectToSave), LogType.Error);
+                    "Class Name: " + SystemTools.getObjectName(objectToSave), SerializerLogType.Error);
                 return;
             }
             catch (Exception)
@@ -241,10 +253,17 @@ namespace DeploymentSerializer
                 DS_MessageLogger.logMessageToUnityConsole("An unknown failure occured when trying to serialize the provided object to the " +
                     " Persistent File Path in build." +
                     "Process is being aborted! \n" +
-                    "Class Name: " + SystemTools.getObjectName(objectToSave), LogType.Error);
+                    "Class Name: " + SystemTools.getObjectName(objectToSave), SerializerLogType.Error);
                 return;
             }
+
+            //Log the save if messages are enabled
+            DS_MessageLogger.logMessageToUnityConsole(SystemTools.getObjectName(objectToSave) + " was saved successfully", SerializerLogType.Standard);
         }
+
+        #endregion
+
+        #region Directory Checks and Creation
 
         /// <summary>
         /// Makes sure the Resources folder exists under the Assets folder. If it doesn't exist, create it.
@@ -255,8 +274,11 @@ namespace DeploymentSerializer
             if (Directory.Exists(resourcesFilePath) == false)
             {
                 Directory.CreateDirectory(resourcesFilePath);
-                //TODO - Proper message
-                DS_MessageLogger.logMessageToUnityConsole("No resources folder, creating one", LogType.Standard);
+                
+                //Log message that we're creating a Folder for the devs
+                DS_MessageLogger.logMessageToUnityConsole("Failed to find the Resources folder in your Assets folder. Creating Resources folder " +
+                    "for your project. \n" +
+                    "This is required for any persistent object saving between the engine and the game build.", SerializerLogType.Standard);                
             }
         }
 
@@ -265,13 +287,57 @@ namespace DeploymentSerializer
         /// </summary>
         private static void makeSureNonPersistentPathExists ()
         {
+            //If the folder doesn't exist, create it
             if (Directory.Exists(nonPersistentFilePath) == false)
             {
                 Directory.CreateDirectory(nonPersistentFilePath);
-                //TODO - Proper Message
-                DS_MessageLogger.logMessageToUnityConsole("No non-persistent path, creating one", LogType.Standard);
+
+                //Log message that we're creating a Folder for the devs
+                DS_MessageLogger.logMessageToUnityConsole("Failed to find the DeveloperBinaries folder in your Assets folder. " +
+                    "Creating the folder for your project. \n" +
+                    "This folder is used by the asset to store saves that will not be accessible in builds of the game", SerializerLogType.Standard);
             }
-        }        
+        }
+
+        #endregion
+
+        #region Load Object Methods
+
+        /// <summary>
+        /// Call this in the game build to take all persistent files and load them into the PersistentPath directory
+        /// </summary>
+        /// <returns>Boolean indicating if the unpack was sucessful</returns>
+        public static bool unpackPersistentSaves ()
+        {
+
+
+
+
+
+            //Make sure the file exists
+            TextAsset ta = Resources.Load(fileNameTrackerName) as TextAsset;
+            if (ta == null){
+                DS_MessageLogger.logMessageToUnityConsole("Failed to find the " + fileNameTrackerName + ".bytes file, did you save any files to" +
+                    "initize it?", SerializerLogType.Warning);
+                return false;
+            }
+
+            //Deserialize the file to read from
+            BinaryFormatter binaryFormatter = new BinaryFormatter();
+            MemoryStream mStream = new MemoryStream(ta.bytes);
+            FileNameTracker fileNameTracker = binaryFormatter.Deserialize(mStream) as FileNameTracker;
+            
+            //Load all saved files into the persistent folder
+            foreach (string fileName in fileNameTracker.fileNames)
+            {
+
+            }
+
+
+            return true;
+        }
+
+        #endregion
     }
 
     /// <summary>
@@ -289,6 +355,16 @@ namespace DeploymentSerializer
         {
             fileNames = new List<string>();
         }
+    }
+
+    /// <summary>
+    /// Object used to store developer settings for logging states
+    /// </summary>
+    [System.Serializable]
+    internal class LoggingSettingsTracker
+    {
+        internal bool displayEventMessages;
+        internal bool logBuildMessages;
     }
 
     /// <summary>
@@ -321,8 +397,8 @@ namespace DeploymentSerializer
         /// <summary>
         /// Getter method returns the name of the class/object as viewed in the editor
         /// </summary>
-        /// <param name="obj"></param>
-        /// <returns></returns>
+        /// <param name="obj">General object to grab name of</param>
+        /// <returns>Class Name of Object</returns>
         internal static string getObjectName (object obj)
         {
             return obj.GetType().Name;
@@ -371,34 +447,143 @@ namespace DeploymentSerializer
     /// </summary>
     internal static class DS_MessageLogger
     {
+        private static string buildLogFilePath = UnityTools.getPersistentFilePath() + "/DeploymentSerializerLog.txt";
+
+        private static bool displayEventMessages = true;
+        private static bool logMessagesInBuild = true;
+
+        #region Set Logging States
+
+        /// <summary>
+        /// Allows the Deployment Serializer to write log messages to the Unity Console
+        /// </summary>
+        public static void enableEventMessages() { displayEventMessages = true; }
+        /// <summary>
+        /// Prevents the Deployment Serializer to write log messages to the Unity Console
+        /// </summary>
+        public static void disableEventMessages() { displayEventMessages = false; }
+
+        /// <summary>
+        /// Allows the Deployment Serializer to write logs to the log file in game build
+        /// </summary>
+        public static void enableBuildLogs() { logMessagesInBuild = true; }
+        /// <summary>
+        /// Prevents the Deployment Serializer to write logs to the log file in game build
+        /// </summary>
+        public static void disableBuildLogs() { logMessagesInBuild = false; }
+
+        #endregion
+
         /// <summary>
         /// Standard log method for submitting general log messages that are formatted before displaying.
         /// </summary>
         /// <param name="message">Message to embed into log report</param>
-        internal static void logMessageToUnityConsole (string message, LogType logType)
+        internal static void logMessageToUnityConsole (string message, SerializerLogType logType)
         {
+            if (displayEventMessages == false) return;
+
             string output = "Deployment Serializer Log Message: \n" +
                 "---------------------------------------------- \n" +
                 message + "\n" +
                 "----------------------------------------------";
 
-            UnityEngine.Debug.Log(output);
+            Debug.Log(output);
         }
 
         /// <summary>
         /// Called when the Deployment Serializer was asked to save an object to a binary file but the object is not tagged as serializable.
         /// </summary>
-        internal static void logNonSerializableObjectCall <T> (T t)
+        internal static void logNonSerializableObjectCall (object t)
         {
             string message = "Deployment Serializer was called to saveObject() on an Object that was not tagged as serializable by the programmer " +
                 "and cannot be saved to file. Please include the [System.Serializable] attribute on the object. \n" +
-                "Class Name: " + t.GetType().Name;
-            logMessageToUnityConsole(message, LogType.Warning);
+                "Class Name: " + SystemTools.getObjectName(t);
+            logMessageToUnityConsole(message, SerializerLogType.Warning);
+        }
+
+        /// <summary>
+        /// Appends a log message to the log file 
+        /// </summary>
+        /// <param name="message">Contents of message to be formatted for the log</param>
+        /// <param name="logType">Message type for log to be catagorized by</param>
+        internal static void logMessageToBuildFile (string message, SerializerLogType logType)
+        {
+            if (logMessagesInBuild == false) return;
+
+
+            string output = "";
+
+            //Add correct header for log type
+            switch (logType)
+            {
+                case SerializerLogType.Standard:
+                    output += "Standard Log Message:\n";
+                    break;
+                case SerializerLogType.Warning:
+                    output += "Warning!\n";
+                    break;
+                case SerializerLogType.Error:
+                    output += "ERROR!\n";
+                    break;
+            }
+
+            //Format message
+            output += "---------------------------------------------- \n"
+                + message + "\n" +
+                "---------------------------------------------- \n" +
+                "~ \n";
+
+            //Nest file modification in try/catch to prevent IO based crashing
+            try
+            {
+                //Append the new log to the file, creates file if it doesn't exist
+                File.AppendAllText(buildLogFilePath, output);
+            } 
+            catch (IOException)
+            {
+                logMessageToUnityConsole("Deployment Serializer failed to append to the log file!", SerializerLogType.Error);
+            }
+        }
+
+        /// <summary>
+        /// Clears the build log file of all entries, effectively refreshes file
+        /// </summary>
+        public static void clearBuildLog ()
+        {
+            //Only clear if file exists
+            if (File.Exists(buildLogFilePath))
+            {
+                File.WriteAllText(buildLogFilePath, "");
+            } 
+        }
+
+        /// <summary>
+        /// Parsed the build log into an array of strings where each element is a single log entry. Single empty string if log is emtpy.
+        /// </summary>
+        /// <returns>Array of log entries</returns>
+        public static string[] parseBuildLogsToArray ()
+        {
+            if (File.Exists(buildLogFilePath) == false) return new string[] { "" };
+
+            string contents = File.ReadAllText(buildLogFilePath);
+            string[] parsedMessages = Regex.Split(contents, "~");
+
+            Array.Resize(ref parsedMessages, parsedMessages.Length - 1);
+
+            for (int i = 0; i < parsedMessages.Length; i++)
+            {
+                if (parsedMessages[i].Substring(0,2) == "\n")
+                {
+                    parsedMessages[i] = parsedMessages[i].Substring(2);
+                }
+            }
+
+            return parsedMessages;
         }
     }
 
     /// <summary>
     /// Enum for tracking which log level the MessageLogger should log messages to in the Unity Console
     /// </summary>
-    internal enum LogType { Standard, Warning, Error }
+    internal enum SerializerLogType { Standard, Warning, Error }
 }
