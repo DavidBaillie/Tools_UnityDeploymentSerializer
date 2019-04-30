@@ -10,7 +10,7 @@ namespace DeploymentSerializer
     /// <summary>
     /// Class containing serialization methods for storing class data in and out of the engine.
     /// </summary>
-    public static class DeploymentSerializer
+    public static class ObjectSerializer
     {
         private const string filenamePrefix = "DS_";
         private const string fileNameExtension = ".bytes";
@@ -301,17 +301,18 @@ namespace DeploymentSerializer
 
         #endregion
 
-        #region Load Object Methods
+        #region Unpack Files
 
         /// <summary>
         /// Call this in the game build to take all persistent files and load them into the PersistentPath directory
         /// </summary>
         /// <returns>Boolean indicating if the unpack was sucessful</returns>
-        public static bool unpackPersistentSaves ()
+        public static bool unpackPersistentSaves()
         {
             //Make sure the file exists
             TextAsset ta = Resources.Load(fileNameTrackerName) as TextAsset;
-            if (ta == null){
+            if (ta == null)
+            {
                 DS_MessageLogger.logMessageToBuildFile("Failed to find FileNameTracker File, either no saves were created or file was deleted", SerializerLogType.Warning);
                 return false;
             }
@@ -324,7 +325,8 @@ namespace DeploymentSerializer
                 BinaryFormatter binaryFormatter = new BinaryFormatter();
                 MemoryStream mStream = new MemoryStream(ta.bytes);
                 fileNameTracker = binaryFormatter.Deserialize(mStream) as FileNameTracker;
-            } catch (IOException)
+            }
+            catch (IOException)
             {
                 DS_MessageLogger.logMessageToBuildFile("IO Failure when trying to deserialize the FileNameTracker while unpacking the " +
                     "persistent binaries.", SerializerLogType.Error);
@@ -336,13 +338,13 @@ namespace DeploymentSerializer
                     "persistent binaries.", SerializerLogType.Error);
                 return false;
             }
-            
+
             //Load all saved files into the persistent folder
             foreach (string fileName in fileNameTracker.fileNames)
             {
                 unpackFile(fileName);
             }
-            
+
             return true;
         }
 
@@ -350,7 +352,7 @@ namespace DeploymentSerializer
         /// Takes the name of the Unity stored TextAsset and reserializes it to a persistent location for access and modification
         /// </summary>
         /// <param name="fileName">Name of the file in the Resources Folder</param>
-        private static void unpackFile (string fileName)
+        private static void unpackFile(string fileName)
         {
             try
             {
@@ -367,8 +369,8 @@ namespace DeploymentSerializer
             }
             catch (IOException)
             {
-                string message = "When trying to unpack file '" + fileName +"', an IO exception occured and the file was not unpacked.";
-                
+                string message = "When trying to unpack file '" + fileName + "', an IO exception occured and the file was not unpacked.";
+
                 DS_MessageLogger.logMessageToBuildFile(message, SerializerLogType.Error);
 
                 return;
@@ -381,35 +383,65 @@ namespace DeploymentSerializer
             }
         }
 
+        #endregion
+
+        #region Load Object Methods
+
         /// <summary>
-        /// Callable only in engine to load developer only files that are not carried into game build.
-        /// Will return default value if in engine.
+        /// Loads a saved file by name in engine and build. isPersistent Only used when in engine.
         /// </summary>
-        /// <typeparam name="T">Object type to load</typeparam>
-        /// <param name="fileName">Name of file originally provided by developer on save</param>
-        /// <returns>Default Value if non existent, or object of type T if file exists</returns>
-        public static T loadDeveloperSave <T> (string fileName)
+        /// <typeparam name="T">Object type to deserialize file into</typeparam>
+        /// <param name="fileName">Name of file</param>
+        /// <param name="isPersistent">Is the file marked as persistent? Not checked in build.</param>
+        /// <returns>Type T if file exists, default value of T otherwise.</returns>
+        public static T loadObject <T> (string fileName, bool isPersistent)
         {
-            //Make sure the call is only ever run in the engine
-            if (UnityTools.isRunningInEngine() == false) {
-                DS_MessageLogger.logMessageToBuildFile("Developer called the loadDeveloperSave() while in the game build. \n" +
-                    "The default provided object type will be returned", SerializerLogType.Warning);
-                return default(T);
-            }
-
-            string filePath;
+            //Convert name to valid file path format
             if (fileName.StartsWith(filenamePrefix))
-                filePath = nonPersistentFilePath + fileName + fileNameExtension;
+                fileName = fileName + fileNameExtension;
             else
-                filePath = nonPersistentFilePath + filenamePrefix + fileName + fileNameExtension;
+                fileName = filenamePrefix + fileName + fileNameExtension;
 
+            //Check for where the file is saved in engine
+            if (UnityTools.isRunningInEngine())
+            {
+                //If it's persistent we're looking in the Resources Folder
+                if (isPersistent)
+                {
+                    return loadFromResourcesFolder<T>(fileName);
+                }
+                //Otherwise its in the dev binaries
+                else
+                {
+                    return loadFromDeveloperBinariesFolder<T>(fileName);
+                }
+            }
+            //otherwise its in the persistent folder
+            else
+            {
+                return loadFromPersistentFolder<T>(fileName);
+            }
+        }
+
+        /// <summary>
+        /// Deserializes a file from the Unity Resources folder and returns it as the provided object type.
+        /// </summary>
+        /// <typeparam name="T">Object type to deserialize file into</typeparam>
+        /// <param name="fileName">Name of the file to deserialize</param>
+        /// <returns>Deserialized file in the provided type</returns>
+        private static T loadFromResourcesFolder <T> (string fileName)
+        {
+            string filePath = resourcesFilePath + fileName;
+
+            //make sure file exists
             if (SystemTools.fileExists(filePath) == false)
             {
-                DS_MessageLogger.logMessageToUnityConsole("Provided file name '" + fileName + "' could not be found.\n" +
-                    "Returning the default object type.", SerializerLogType.Warning);
+                DS_MessageLogger.logMessageToUnityConsole("Failed to find file '" + fileName + "' when loading the" +
+                    "file for deserialization on the loadSave() call.", SerializerLogType.Warning);
                 return default(T);
             }
 
+            //Try to load the file 
             try
             {
                 BinaryFormatter binaryFormatter = new BinaryFormatter();
@@ -420,14 +452,96 @@ namespace DeploymentSerializer
             }
             catch (IOException)
             {
-                DS_MessageLogger.logMessageToUnityConsole("An IO exception occurred while trying to load the developer file '" + "'. \n" +
-                    "Returning the default provided object type to caller.", SerializerLogType.Error);
+                DS_MessageLogger.logMessageToUnityConsole("An IO exception occurred while trying to load '" +
+                    fileName + "' in the Resources folder.", SerializerLogType.Error);
                 return default(T);
             }
             catch (Exception)
             {
-                DS_MessageLogger.logMessageToUnityConsole("An unknown exception occurred while trying to load the developer file '" + "'. \n" +
-                    "Returning the default provided object type to caller.", SerializerLogType.Error);
+                DS_MessageLogger.logMessageToUnityConsole("An unknown exception occurred while trying to load '" +
+                    fileName + "' in the Resources folder.", SerializerLogType.Error);
+                return default(T);
+            }
+        }
+
+        /// <summary>
+        /// Deserializes a file from the Unity Resources folder and returns it as the provided object type.
+        /// </summary>
+        /// <typeparam name="T">Object type to deserialize file into</typeparam>
+        /// <param name="fileName">Name of the file to deserialize</param>
+        /// <returns>Deserialized file in the provided type</returns>
+        private static T loadFromDeveloperBinariesFolder <T> (string fileName)
+        {
+            string filePath = nonPersistentFilePath + fileName;
+
+            //make sure file exists
+            if (SystemTools.fileExists(filePath) == false)
+            {
+                DS_MessageLogger.logMessageToUnityConsole("Failed to find file '" + fileName + "' when loading the" +
+                    "file for deserialization on the loadSave() call.", SerializerLogType.Warning);
+                return default(T);
+            }
+
+            //Try to load the file
+            try
+            {
+                BinaryFormatter binaryFormatter = new BinaryFormatter();
+                FileStream fileStream = new FileStream(filePath, FileMode.Open);
+                T returnObject = (T)binaryFormatter.Deserialize(fileStream);
+                fileStream.Close();
+                return returnObject;
+            }
+            catch (IOException)
+            {
+                DS_MessageLogger.logMessageToUnityConsole("An IO exception occurred while trying to load '" +
+                    fileName + "' in the DeveloperBinaries folder.", SerializerLogType.Error);
+                return default(T);
+            }
+            catch (Exception)
+            {
+                DS_MessageLogger.logMessageToUnityConsole("An unknown exception occurred while trying to load '" +
+                    fileName + "' in the DeveloperBinaries folder.", SerializerLogType.Error);
+                return default(T);
+            }
+        }
+
+        /// <summary>
+        /// Deserializes a file from the Unity Resources folder and returns it as the provided object type.
+        /// </summary>
+        /// <typeparam name="T">Object type to deserialize file into</typeparam>
+        /// <param name="fileName">Name of the file to deserialize</param>
+        /// <returns>Deserialized file in the provided type</returns>
+        private static T loadFromPersistentFolder <T> (string fileName)
+        {
+            string filePath = UnityTools.getPersistentFilePath() +"/" + fileName;
+
+            //make sure file exists
+            if (SystemTools.fileExists(filePath) == false)
+            {
+                DS_MessageLogger.logMessageToUnityConsole("Failed to find file '" + fileName + "' when loading the" +
+                    "file for deserialization on the loadSave() call.", SerializerLogType.Warning);
+                return default(T);
+            }
+
+            //Try to load the file
+            try
+            {
+                BinaryFormatter binaryFormatter = new BinaryFormatter();
+                FileStream fileStream = new FileStream(filePath, FileMode.Open);
+                T returnObject = (T)binaryFormatter.Deserialize(fileStream);
+                fileStream.Close();
+                return returnObject;
+            }
+            catch (IOException)
+            {
+                DS_MessageLogger.logMessageToUnityConsole("An IO exception occurred while trying to load '" +
+                    fileName + "' in the Persistent build folder.", SerializerLogType.Error);
+                return default(T);
+            }
+            catch (Exception)
+            {
+                DS_MessageLogger.logMessageToUnityConsole("An unknown exception occurred while trying to load '" +
+                    fileName + "' in the Persistent build folder.", SerializerLogType.Error);
                 return default(T);
             }
         }
@@ -663,7 +777,4 @@ namespace DeploymentSerializer
     /// Enum for tracking which log level the MessageLogger should log messages to in the Unity Console
     /// </summary>
     internal enum SerializerLogType { Standard, Warning, Error }
-
-    
-    internal enum savePathType { Standard, BuildOnly, Resources }
 }

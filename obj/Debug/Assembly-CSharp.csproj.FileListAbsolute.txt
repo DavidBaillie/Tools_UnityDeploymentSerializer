@@ -1,0 +1,2 @@
+C:\Users\Liam\Documents\Unity Projects\Tools_UnityDeploymentSerializer\obj\Debug\Assembly-CSharp.csprojAssemblyReference.cache
+C:\Users\Liam\Documents\Unity Projects\Tools_UnityDeploymentSerializer\obj\Debug\Assembly-CSharp.csproj.CoreCompileInputs.cache
