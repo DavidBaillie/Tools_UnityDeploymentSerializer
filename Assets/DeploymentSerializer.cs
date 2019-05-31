@@ -1,5 +1,6 @@
 ﻿using UnityEngine;
 using System;
+using System.Threading;
 using System.IO;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Collections.Generic;
@@ -16,13 +17,24 @@ namespace DeploymentSerializer
         private const string fileNameExtension = ".bytes";
         private const string fileNameTrackerName = "FNTP";
 
+        private const int persistentSaveAttempts = 80;
+        private const int delayBetweenPersistentSaves = 250;    //In miliseconds
+
         private static string resourcesFilePath = UnityTools.getProjectFilePath() + "/Resources/";
         private static string nonPersistentFilePath = UnityTools.getProjectFilePath() + "/DevelopmentBinaries/";
         private static string fileNamesTrackerPath = UnityTools.getProjectFilePath() + "/Resources/FNTP.bytes";
 
-        
-
         #region Saving Object Methods
+
+        public static void testCall ()
+        {
+            Thread t = new Thread(() => testThread("Threaded message with cast", 5));
+            t.Start();
+        }
+
+        private static void testThread (string message, int num) { Debug.Log(message + num.ToString()); }
+
+
 
         /// <summary>
         /// Saves the provided Object to a binary file. If marked as persistent the file is saved to the Resources folder to be rebuilt for 
@@ -47,10 +59,13 @@ namespace DeploymentSerializer
                 makeSureResourcesExists();
                 makeSureNonPersistentPathExists();
 
-                //Save to resources for persistence
+                //Saves the object to the persistent location using a thread.
+                //Threading is used to make sure that OS read/write cycles do not prevent multiple saves from stopping each other from updating
+                //or saving to the FNTP file
                 if (isPersistentInBuild)
                 {
-                    serializeObject_Persistent(objectToSave, fileName);
+                    Thread saveThread = new Thread(() => serializeObject_Persistent(objectToSave, fileName));
+                    saveThread.Start();
                 }
                 //Save to DevelopmentBinaries for dev only
                 else
@@ -66,12 +81,11 @@ namespace DeploymentSerializer
         }
 
         /// <summary>
-        /// Saves the object to a binary file in the Resources project folder
+        /// 
         /// </summary>
-        /// <typeparam name="T">Object Type</typeparam>
-        /// <param name="objectToSave">Object to be serialized</param>
-        /// <param name="fileName">Name to save file under</param>
-        private static void serializeObject_Persistent (object objectToSave, string fileName)
+        /// <param name="objectToSave"></param>
+        /// <param name="fileName"></param>
+        private static void serializeObject_Persistent(object objectToSave, string fileName, int attemptsRemaining)
         {
             //Initialize objects for use
             BinaryFormatter binaryFormatter;
@@ -91,8 +105,11 @@ namespace DeploymentSerializer
                 }
                 catch (IOException)
                 {
-                    DS_MessageLogger.logMessageToUnityConsole("An unexpected IO failure occured when trying to open the FileNameTracker" +
-                        " binary stored in the Resources Folder. Object saving process is being aborted!", SerializerLogType.Error);
+                    //DS_MessageLogger.logMessageToUnityConsole("An unexpected IO failure occured when trying to open the FileNameTracker" +
+                    //    " binary stored in the Resources Folder. Object saving process is being aborted!", SerializerLogType.Error);
+                    Debug.Log("File already open, waiting then trying again");
+                    //System.Threading.Thread.Sleep(500);
+                    //serializeObject_Persistent(objectToSave, fileName);
                     return;
                 }
                 catch (Exception)
